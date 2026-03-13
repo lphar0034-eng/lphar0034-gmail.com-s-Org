@@ -3,7 +3,7 @@ import React from 'react';
 export const Logo: React.FC<{ className?: string }> = ({ className = "" }) => {
   return (
     <div className={`flex items-center ${className}`}>
-      <svg width="550" height="120" viewBox="0 0 550 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 550 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
         {/* ECO - Lime Green (#A8C43B) */}
         <g fill="#A8C43B">
           {/* E - Clean Blocky Style */}

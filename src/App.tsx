@@ -1,12 +1,314 @@
 import React, { useState, useEffect, useRef, Component, ErrorInfo, ReactNode } from 'react';
-import { Plus, FileText, Trash2, Printer, ChevronLeft, Download, Loader2, Pencil, Search, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Plus, FileText, Trash2, Printer, ChevronLeft, Download, Loader2, Pencil, Search, AlertTriangle, RefreshCw, User, Lock, Shield, Eye, LogOut, Settings, Save, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from './lib/supabase';
 import { Logo } from './components/Logo';
-import { Invoice, InvoiceItem } from './types';
+import { Invoice, InvoiceItem, Client } from './types';
 import { numberToFrenchWords } from './utils/numberToWords';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+
+// Login Component
+const Login: React.FC<{ 
+  onLogin: (role: 'admin' | 'visitor', client?: Client) => void;
+  adminPass: string;
+}> = ({ onLogin, adminPass }) => {
+  const [password, setPassword] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [error, setError] = useState('');
+  const [showLogin, setShowLogin] = useState<'admin' | 'visitor' | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoggingIn(true);
+
+    try {
+      if (showLogin === 'admin') {
+        if (password === adminPass) {
+          onLogin('admin');
+        } else {
+          setError('Mot de passe incorrect');
+        }
+      } else if (showLogin === 'visitor') {
+        if (!companyName || !password) {
+          setError('Veuillez remplir tous les champs');
+          setIsLoggingIn(false);
+          return;
+        }
+
+        // Check if client exists
+        const { data: client, error: fetchError } = await supabase
+          .from('clients')
+          .select('*')
+          .eq('name', companyName.trim())
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw fetchError;
+        }
+
+        if (client) {
+          // Verify password
+          if (client.password === password) {
+            onLogin('visitor', client);
+          } else {
+            setError('Mot de passe incorrect pour cette entreprise');
+          }
+        } else {
+          // First time login: Create account
+          const { data: newClient, error: createError } = await supabase
+            .from('clients')
+            .insert([{ name: companyName.trim(), password }])
+            .select()
+            .single();
+
+          if (createError) throw createError;
+          onLogin('visitor', newClient);
+        }
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError("Une erreur est survenue lors de la connexion");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-100"
+      >
+        <div className="flex justify-center mb-8">
+          <Logo className="w-48 sm:w-64" />
+        </div>
+        
+        <h2 className="text-2xl font-bold text-center text-gray-800 mb-8">Bienvenue</h2>
+
+        {!showLogin ? (
+          <div className="space-y-4">
+            <button 
+              onClick={() => setShowLogin('admin')}
+              className="w-full flex items-center justify-between p-4 bg-white border-2 border-gray-100 rounded-2xl hover:border-[#009FE3] hover:bg-blue-50 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-100 text-[#009FE3] rounded-xl group-hover:bg-[#009FE3] group-hover:text-white transition-colors">
+                  <Shield size={24} />
+                </div>
+                <div className="text-left">
+                  <p className="font-bold text-gray-800">Administrateur</p>
+                  <p className="text-xs text-gray-500">Accès complet (Gestion)</p>
+                </div>
+              </div>
+              <ChevronLeft className="rotate-180 text-gray-300" size={20} />
+            </button>
+
+            <button 
+              onClick={() => setShowLogin('visitor')}
+              className="w-full flex items-center justify-between p-4 bg-white border-2 border-gray-100 rounded-2xl hover:border-emerald-500 hover:bg-emerald-50 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-emerald-100 text-emerald-500 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                  <User size={24} />
+                </div>
+                <div className="text-left">
+                  <p className="font-bold text-gray-800">Espace Client</p>
+                  <p className="text-xs text-gray-500">Consultez vos documents</p>
+                </div>
+              </div>
+              <ChevronLeft className="rotate-180 text-gray-300" size={20} />
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleLogin} className="space-y-6">
+            {showLogin === 'visitor' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nom de l'entreprise
+                </label>
+                <div className="relative">
+                  <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input 
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Ex: Ma Société SARL"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#009FE3] focus:border-transparent outline-none transition-all"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Mot de passe
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input 
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Entrez votre mot de passe"
+                  className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#009FE3] focus:border-transparent outline-none transition-all"
+                  required
+                />
+              </div>
+              {error && <p className="text-red-500 text-xs mt-2 ml-1">{error}</p>}
+              {showLogin === 'visitor' && !error && (
+                <p className="text-gray-400 text-[10px] mt-2 ml-1">
+                  * Si c'est votre première visite, ce mot de passe sera enregistré.
+                </p>
+              )}
+            </div>
+            
+            <div className="flex gap-3">
+              <button 
+                type="button"
+                onClick={() => setShowLogin(null)}
+                className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+              >
+                Retour
+              </button>
+              <button 
+                type="submit"
+                disabled={isLoggingIn}
+                className={`flex-1 py-3 text-white rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center gap-2 ${
+                  showLogin === 'admin' 
+                    ? 'bg-[#009FE3] hover:bg-[#0089C4] shadow-[#009FE3]/20' 
+                    : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                }`}
+              >
+                {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : 'Se connecter'}
+              </button>
+            </div>
+          </form>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
+// Settings Modal Component
+const SettingsModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  adminPass: string;
+  visitorPass: string;
+  onSave: (admin: string, visitor: string) => void;
+}> = ({ isOpen, onClose, adminPass, visitorPass, onSave }) => {
+  const [newAdminPass, setNewAdminPass] = useState(adminPass);
+  const [newVisitorPass, setNewVisitorPass] = useState(visitorPass);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setNewAdminPass(adminPass);
+      setNewVisitorPass(visitorPass);
+    }
+  }, [isOpen, adminPass, visitorPass]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    // Simulate a small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 500));
+    onSave(newAdminPass, newVisitorPass);
+    setIsSaving(false);
+    onClose();
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+          >
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-[#009FE3]/10 text-[#009FE3] rounded-lg">
+                  <Settings size={20} />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">Paramètres</h2>
+              </div>
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <Shield size={14} /> Sécurité Admin
+                </h3>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5 ml-1">Nouveau mot de passe Admin</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input 
+                      type="text"
+                      value={newAdminPass}
+                      onChange={(e) => setNewAdminPass(e.target.value)}
+                      className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#009FE3] focus:border-transparent outline-none transition-all text-sm"
+                      placeholder="Mot de passe Admin"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-px bg-gray-100"></div>
+
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <Eye size={14} /> Sécurité Visiteur
+                </h3>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5 ml-1">Nouveau mot de passe Visiteur</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input 
+                      type="text"
+                      value={newVisitorPass}
+                      onChange={(e) => setNewVisitorPass(e.target.value)}
+                      className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-sm"
+                      placeholder="Laisser vide pour aucun mot de passe"
+                    />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1.5 ml-1 italic">* Si vide, le visiteur se connecte sans mot de passe.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 bg-gray-50 flex gap-3">
+              <button 
+                onClick={onClose}
+                className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button 
+                onClick={handleSave}
+                disabled={isSaving || !newAdminPass}
+                className="flex-1 py-3 bg-[#009FE3] text-white rounded-xl font-bold hover:bg-[#0089C4] transition-colors shadow-lg shadow-[#009FE3]/20 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                Enregistrer
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 // Components
 const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ invoice, onBack }) => {
@@ -123,53 +425,53 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
       >
         <div 
           ref={invoiceRef}
-          className="bg-white pt-4 px-4 sm:px-10 pb-6 shadow-2xl border border-gray-200 font-sans text-black flex flex-col flex-grow min-w-[800px] lg:min-w-0 mx-auto"
+          className="bg-white pt-4 px-4 sm:px-10 pb-6 shadow-2xl border border-gray-200 font-sans text-black flex flex-col flex-grow min-w-[800px] lg:min-w-0 mx-auto origin-top sm:origin-center scale-[0.45] xs:scale-[0.6] sm:scale-100 mb-[-400px] xs:mb-[-250px] sm:mb-0"
         >
-        {/* Header with Logo and Client Box */}
-        <div className="flex justify-between items-start mb-6">
-          <Logo className="w-80 -mt-4" />
-          <div className="text-left border-2 border-black p-4 rounded-none relative min-w-[320px] mt-12">
-            <div className="absolute -top-3 left-6 bg-white px-2 font-bold italic text-sm">A l'attent . de :</div>
-            <div className="space-y-2 text-xs pt-1">
-              <p className="flex"><span className="font-bold w-16 underline">Sté:</span> <span className="flex-1 font-medium">{invoice.client_name}</span></p>
-              <p className="flex"><span className="font-bold w-16 underline">Adresse :</span> <span className="flex-1 font-medium">{invoice.client_address || '................................................'}</span></p>
-              <p className="flex"><span className="font-bold w-16 underline">ICE :</span> <span className="flex-1 font-medium">{invoice.client_ice || '................................................'}</span></p>
+        {/* Header with Logo */}
+        <div className="mb-6">
+          <Logo className="w-48 sm:w-64 -mt-2 mb-4" />
+          
+          <div className="flex justify-between items-start text-xs">
+            {/* Left Info */}
+            <div className="space-y-1 relative pr-8">
+              <div className="absolute -top-2 -left-2 -right-2 -bottom-2 border border-black/20 rounded-lg pointer-events-none"></div>
+              <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-black"></div>
+              <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-black"></div>
+              
+              <div className="p-2 space-y-1">
+                <p className="font-bold text-sm">{invoice.type === 'devis' ? 'DEVIS' : 'FACTURE'} N° {invoice.invoice_number}</p>
+                <p><span className="font-medium">Votre contact :</span> A. EL BAKKARI</p>
+                <p><span className="font-medium">Tél. :</span> 06 61 96 57 05 - 06 61 86 82 38</p>
+                <p><span className="font-medium">E-mail :</span> contact.ecoair@gmail.com</p>
+              </div>
             </div>
-            <div className="absolute -bottom-2.5 right-4 text-2xl font-serif leading-none">┘</div>
-            <div className="absolute -top-2.5 right-4 text-2xl font-serif leading-none">┐</div>
-            <div className="absolute -bottom-2.5 left-4 text-2xl font-serif leading-none">└</div>
-            <div className="absolute -top-2.5 left-4 text-2xl font-serif leading-none">┌</div>
+
+            {/* Right Info (Client) */}
+            <div className="space-y-1 text-xs min-w-[250px]">
+              <p><span className="font-medium">A l'attent. de :</span> <span className="font-bold">{invoice.client_name}</span></p>
+              <p><span className="font-medium">Tél. :</span></p>
+              <p><span className="font-medium">GSM:</span></p>
+              <p><span className="font-medium">Email :</span></p>
+              <p><span className="font-medium">Adresse:</span> {invoice.client_address || 'RABAT'}</p>
+            </div>
           </div>
         </div>
 
-        {/* Invoice Number and Info Table */}
+        {/* Affaire and Info Table */}
         <div className="mb-4">
-          <h1 className="text-2xl font-bold text-black mb-2">{invoice.type === 'devis' ? 'DEVIS' : 'Facture'} N° : {invoice.invoice_number}</h1>
           <p className="mb-2 font-bold text-sm">Affaire : ..............................</p>
           
           <table className="w-full border-collapse border-2 border-black text-center text-xs">
             <thead>
               <tr className="bg-gray-200">
-                <th className={`border-2 border-black py-1 px-2 font-bold ${invoice.type === 'devis' ? 'w-1/2' : 'w-1/4'}`}>Date :</th>
-                <th className={`border-2 border-black py-1 px-2 font-bold ${invoice.type === 'devis' ? 'w-1/2' : 'w-1/4'}`}>Bon de Commande</th>
-                {invoice.type === 'facture' && (
-                  <>
-                    <th className="border-2 border-black py-1 px-2 font-bold w-1/4">Bon de Livraison</th>
-                    <th className="border-2 border-black py-1 px-2 font-bold w-1/4">Mode de Règlement</th>
-                  </>
-                )}
+                <th className="border-2 border-black py-1 px-2 font-bold w-1/2">Date :</th>
+                <th className="border-2 border-black py-1 px-2 font-bold w-1/2">Bon de Commande</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td className="border-2 border-black py-1.5">{invoice.date}</td>
-                <td className="border-2 border-black py-1.5"></td>
-                {invoice.type === 'facture' && (
-                  <>
-                    <td className="border-2 border-black py-1.5"></td>
-                    <td className="border-2 border-black py-1.5 font-bold uppercase">{invoice.mode_reglement}</td>
-                  </>
-                )}
+                <td className="border-2 border-black py-1.5 font-bold">. . .</td>
               </tr>
             </tbody>
           </table>
@@ -179,16 +481,16 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
         <table className="w-full border-collapse border-2 border-black mb-0 text-sm">
           <thead>
             <tr className="bg-gray-200">
-              <th className="border-2 border-black py-1 px-2 w-16 text-left">Article</th>
-              <th className="border-2 border-black py-1 px-2 text-left">Désignation</th>
-              <th className="border-2 border-black py-1 px-2 w-12">Qté</th>
-              <th className="border-2 border-black py-1 px-2 w-24">Prix U. HT</th>
-              <th className="border-2 border-black py-1 px-2 w-28">Montant HT</th>
+              <th className="border-2 border-black py-1 px-2 w-16 text-center">Article</th>
+              <th className="border-2 border-black py-1 px-2 text-center">Désignation</th>
+              <th className="border-2 border-black py-1 px-2 w-12 text-center">Qté</th>
+              <th className="border-2 border-black py-1 px-2 w-24 text-center">Prix U. HT</th>
+              <th className="border-2 border-black py-1 px-2 w-28 text-center">Montant HT</th>
             </tr>
           </thead>
           <tbody>
             {invoice.items.map((item, idx) => (
-              <tr key={idx} className="border-b border-black/10">
+              <tr key={idx}>
                 <td className="border-x-2 border-black p-2 align-top text-center font-medium"></td>
                 <td className="border-x-2 border-black p-2 align-top whitespace-pre-line text-xs min-h-[100px]">
                   {(() => {
@@ -197,7 +499,7 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
                     const details = lines.slice(1).join('\n');
                     return (
                       <>
-                        <div className="font-bold underline mb-2 uppercase">{title}</div>
+                        <div className="font-bold underline mb-1 uppercase">{title}</div>
                         <div className="font-medium">{details}</div>
                       </>
                     );
@@ -209,7 +511,7 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
               </tr>
             ))}
             {/* Fill remaining space to match the photo's look */}
-            <tr style={{ height: `${Math.max(20, 250 - (invoice.items.length * 45))}px` }}>
+            <tr style={{ height: `${Math.max(20, 300 - (invoice.items.length * 50))}px` }}>
               <td className="border-x-2 border-black"></td>
               <td className="border-x-2 border-black"></td>
               <td className="border-x-2 border-black"></td>
@@ -224,7 +526,7 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
           <table className="w-[280px] border-collapse border-2 border-black text-xs">
             <tbody>
               <tr className="bg-gray-200">
-                <td className="border-2 border-black px-2 py-1 font-bold">Total H.T</td>
+                <td className="border-2 border-black px-2 py-1 font-bold">Total H,T</td>
                 <td className="border-2 border-black px-2 py-1 text-right font-bold">{invoice.total_ht.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
               </tr>
               <tr>
@@ -243,22 +545,30 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
           </table>
         </div>
 
-        {/* Amount in words */}
-        {invoice.type === 'facture' && (
-          <div className="mb-6 text-xs">
-            <p className="italic mb-0.5">Arrêtée la présente facture à la somme de :</p>
-            <p className="font-bold uppercase tracking-tight leading-tight">
-              {numberToFrenchWords(invoice.total_ttc)}
-            </p>
-          </div>
-        )}
+        {/* Amount in words / Remarque */}
+        <div className="mb-6 text-[10px] space-y-4">
+          {invoice.type === 'facture' ? (
+            <div>
+              <p className="italic mb-0.5 underline">Arrêtée la présente facture à la somme de :</p>
+              <p className="font-bold uppercase tracking-tight leading-tight">
+                {numberToFrenchWords(invoice.total_ttc)}
+              </p>
+            </div>
+          ) : (
+            <div className="max-w-[500px]">
+              <p className="font-bold italic underline mb-1">Remarque :</p>
+              <p className="leading-relaxed">
+                La commande n’est prise en compte que s’il y a un Bon de commande ou un cachet de la mention « Bon pour accord » sur le devis.<br />
+                Tout travail effectué non mentionné sur le présent devis fera l’objet d’une facture séparée.
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Signature Area */}
-        {invoice.type === 'facture' && (
-          <div className="text-right mb-20 mt-auto">
-            <p className="font-bold text-base mr-12">DIRECTION GENERALE</p>
-          </div>
-        )}
+        <div className="text-right mb-12 mt-auto">
+          <p className="font-bold text-sm mr-12 uppercase">Direction Générale</p>
+        </div>
 
         {invoice.type === 'devis' && <div className="mt-auto mb-10"></div>}
 
@@ -302,7 +612,8 @@ const InvoiceForm: React.FC<{
   onCancel: () => void;
   initialData?: Invoice | null;
   mode: 'edit' | 'copy';
-}> = ({ onSave, onCancel, initialData, mode }) => {
+  clients: Client[];
+}> = ({ onSave, onCancel, initialData, mode, clients }) => {
   const [formData, setFormData] = useState<Partial<Invoice>>(() => {
     if (initialData) {
       if (mode === 'copy') {
@@ -316,14 +627,15 @@ const InvoiceForm: React.FC<{
     }
     return {
       type: 'facture',
-      invoice_number: `A${Math.floor(Math.random() * 1000)}/2024`,
+      invoice_number: `A${Math.floor(Math.random() * 1000)}/2026`,
       date: new Date().toISOString().split('T')[0],
       client_name: '',
       client_address: '',
       client_ice: '',
       mode_reglement: 'ESPECE',
       tva_rate: 20,
-      items: [{ description: '', quantity: 1, unit_price: 0, total_ht: 0 }]
+      items: [{ description: '', quantity: 1, unit_price: 0, total_ht: 0 }],
+      client_id: ''
     };
   });
 
@@ -415,6 +727,27 @@ const InvoiceForm: React.FC<{
         </div>
 
         <div className={`grid grid-cols-1 ${formData.type === 'facture' ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6`}>
+          <div className="md:col-span-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Client (Espace Client)</label>
+            <select 
+              value={formData.client_id}
+              onChange={e => {
+                const client = clients.find(c => c.id === e.target.value);
+                setFormData({ 
+                  ...formData, 
+                  client_id: e.target.value,
+                  client_name: client ? client.name : formData.client_name 
+                });
+              }}
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#009FE3] focus:border-transparent outline-none bg-white"
+            >
+              <option value="">-- Sélectionner un client --</option>
+              {clients.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-gray-400 mt-1">Lier ce document à un compte client pour qu'il puisse le voir.</p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">N° {formData.type === 'facture' ? 'Facture' : 'Devis'}</label>
             <input 
@@ -540,21 +873,21 @@ const InvoiceForm: React.FC<{
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end pt-6 border-t border-gray-100 gap-4">
+        <div className="flex flex-col sm:flex-row justify-end pt-6 border-t border-gray-100 gap-3 sm:gap-4">
           <button 
             type="button" 
             onClick={onCancel}
-            className="w-full sm:w-auto px-6 py-3 rounded-full bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 transition-colors"
+            className="w-full sm:w-auto px-8 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-all order-2 sm:order-1"
           >
             Annuler
           </button>
           <button 
             type="submit" 
             disabled={isSaving}
-            className="w-full sm:w-auto px-8 py-3 rounded-full bg-[#98C13C] text-white font-bold hover:bg-[#86AB34] transition-colors shadow-lg shadow-[#98C13C]/20 flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-12 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-gray-800 transition-all shadow-lg flex items-center justify-center gap-2 order-1 sm:order-2"
           >
-            {isSaving && <Loader2 size={18} className="animate-spin" />}
-            {mode === 'edit' ? 'Mettre à jour' : `Enregistrer la ${formData.type === 'devis' ? 'Devis' : 'Facture'}`}
+            {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+            {mode === 'edit' ? 'Mettre à jour' : 'Enregistrer'}
           </button>
         </div>
       </form>
@@ -611,7 +944,13 @@ export default function App() {
 }
 
 function AppContent() {
+  const [userRole, setUserRole] = useState<'admin' | 'visitor' | null>(null);
+  const [currentClient, setCurrentClient] = useState<Client | null>(null);
+  const [adminPassword, setAdminPassword] = useState(() => localStorage.getItem('admin_pass') || 'admin123');
+  const [visitorPassword, setVisitorPassword] = useState(() => localStorage.getItem('visitor_pass') || '');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [view, setView] = useState<'list' | 'form' | 'preview'>('list');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
@@ -619,7 +958,7 @@ function AppContent() {
   const [showChoiceModal, setShowChoiceModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'facture' | 'devis'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'facture' | 'devis' | 'clients'>('all');
   const [healthStatus, setHealthStatus] = useState<string>('checking...');
   const [dbConfigured, setDbConfigured] = useState(true);
 
@@ -630,9 +969,27 @@ function AppContent() {
       setDbConfigured(!!(url && key));
     };
     checkConfig();
-    fetchInvoices();
     checkHealth();
   }, []);
+
+  useEffect(() => {
+    if (userRole) {
+      fetchInvoices();
+      if (userRole === 'admin') {
+        fetchClients();
+      }
+    }
+  }, [userRole, currentClient]);
+
+  const fetchClients = async () => {
+    try {
+      const { data, error } = await supabase.from('clients').select('*').order('name');
+      if (error) throw error;
+      setClients(data || []);
+    } catch (err) {
+      console.error("Fetch clients error:", err);
+    }
+  };
 
   const checkHealth = async () => {
     setHealthStatus('Checking...');
@@ -661,10 +1018,15 @@ function AppContent() {
   const fetchInvoices = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('invoices')
-        .select('*, invoice_items(*)')
-        .order('created_at', { ascending: false });
+        .select('*, invoice_items(*)');
+
+      if (userRole === 'visitor' && currentClient) {
+        query = query.eq('client_id', currentClient.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -678,6 +1040,11 @@ function AppContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogin = (role: 'admin' | 'visitor', client?: Client) => {
+    setUserRole(role);
+    if (client) setCurrentClient(client);
   };
 
   const saveInvoice = async (invoice: Invoice) => {
@@ -699,7 +1066,8 @@ function AppContent() {
             tva_rate: invoice.tva_rate,
             tva_amount: invoice.tva_amount,
             total_ttc: invoice.total_ttc,
-            type: invoice.type
+            type: invoice.type,
+            client_id: invoice.client_id || null
           })
           .eq('id', invoice.id);
 
@@ -735,7 +1103,8 @@ function AppContent() {
             tva_rate: invoice.tva_rate,
             tva_amount: invoice.tva_amount,
             total_ttc: invoice.total_ttc,
-            type: invoice.type
+            type: invoice.type,
+            client_id: invoice.client_id || null
           }])
           .select()
           .single();
@@ -789,6 +1158,22 @@ function AppContent() {
     }
   };
 
+  const handleSaveSettings = (admin: string, visitor: string) => {
+    setAdminPassword(admin);
+    setVisitorPassword(visitor);
+    localStorage.setItem('admin_pass', admin);
+    localStorage.setItem('visitor_pass', visitor);
+  };
+
+  if (!userRole) {
+    return (
+      <Login 
+        onLogin={handleLogin} 
+        adminPass={adminPassword} 
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-gray-900 font-sans selection:bg-[#009FE3]/20">
       <style>
@@ -808,46 +1193,58 @@ function AppContent() {
         `}
       </style>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 no-print">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Logo className="scale-75 origin-left" />
-            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-400">v2.1-supabase</span>
-            <div className="flex items-center gap-1">
-              <span className={`text-[10px] px-2 py-0.5 rounded ${
-                healthStatus === 'Connected' ? 'bg-green-100 text-green-600' : 
-                healthStatus === 'Checking...' ? 'bg-blue-100 text-blue-600' :
-                'bg-red-100 text-red-600'
-              }`}>
-                {healthStatus}
+      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50 no-print px-3 sm:px-6 py-2 sm:py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 overflow-hidden">
+            <div className="flex-shrink-0">
+              <Logo className="w-24 sm:w-32" />
+            </div>
+            <div className="hidden xs:flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+              {userRole === 'admin' ? (
+                <Shield size={10} className="text-[#009FE3] sm:w-3 sm:h-3" />
+              ) : (
+                <Eye size={10} className="text-emerald-500 sm:w-3 sm:h-3" />
+              )}
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gray-600">
+                {userRole === 'admin' ? 'Admin' : 'Visiteur'}
               </span>
-              {healthStatus !== 'Connected' && healthStatus !== 'Checking...' && (
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-1.5 sm:gap-4">
+            {userRole === 'admin' && (
+              <button 
+                onClick={() => {
+                  setEditingInvoice(null);
+                  setEditMode('copy');
+                  setView('form');
+                }}
+                className="flex items-center gap-1.5 bg-[#009FE3] text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm hover:bg-[#0089C4] transition-all shadow-lg shadow-[#009FE3]/20"
+              >
+                <Plus size={16} />
+                <span className="hidden xs:inline">Nouveau</span>
+              </button>
+            )}
+            
+            <div className="flex items-center gap-1 sm:gap-2">
+              {userRole === 'admin' && (
                 <button 
-                  onClick={checkHealth}
-                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-                  title="Réessayer la connexion"
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="p-2 text-gray-400 hover:text-[#009FE3] hover:bg-[#009FE3]/5 rounded-xl transition-all"
+                  title="Paramètres"
                 >
-                  <RefreshCw size={10} className="text-gray-400" />
+                  <Settings size={18} className="sm:w-5 sm:h-5" />
                 </button>
               )}
+              
+              <button 
+                onClick={() => setUserRole(null)}
+                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                title="Déconnexion"
+              >
+                <LogOut size={18} className="sm:w-5 sm:h-5" />
+              </button>
             </div>
-            {!dbConfigured && (
-              <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded flex items-center gap-1">
-                <AlertTriangle size={10} /> Config manquante
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => {
-                setEditingInvoice(null);
-                setEditMode('copy');
-                setView('form');
-              }}
-              className="flex items-center gap-2 bg-[#009FE3] text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-semibold hover:bg-[#0089C4] transition-all shadow-lg shadow-[#009FE3]/20"
-            >
-              <Plus size={20} /> <span className="hidden sm:inline">Nouveau</span>
-            </button>
           </div>
         </div>
       </header>
@@ -885,8 +1282,8 @@ function AppContent() {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col lg:flex-row items-center gap-6 w-full lg:w-auto">
-                  <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm w-full sm:w-auto overflow-x-auto no-scrollbar">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full">
+                  <div className="flex flex-wrap items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-gray-100 w-full sm:w-auto">
                     <button
                       onClick={() => setActiveTab('all')}
                       className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'all' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
@@ -905,41 +1302,89 @@ function AppContent() {
                     >
                       Devis
                     </button>
+                    {userRole === 'admin' && (
+                      <button
+                        onClick={() => setActiveTab('clients')}
+                        className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'clients' ? 'bg-emerald-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                      >
+                        Clients
+                      </button>
+                    )}
                   </div>
-                  <div className="relative w-full lg:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      type="text"
-                      placeholder="Rechercher un client..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#009FE3] focus:border-transparent outline-none shadow-sm transition-all"
-                    />
-                  </div>
-                    <div className="flex flex-wrap justify-center sm:justify-end gap-6 sm:gap-8 text-center sm:text-right w-full lg:w-auto shrink-0">
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Factures</p>
-                        <p className="text-xl font-black text-[#009FE3]">
-                          {invoices.filter(i => i.type === 'facture').reduce((sum, inv) => sum + inv.total_ttc, 0).toLocaleString()} <span className="text-xs">DH</span>
+                  
+                  <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+                    <div className="relative w-full sm:max-w-xs">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input 
+                        type="text"
+                        placeholder="Rechercher..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#009FE3] focus:border-transparent outline-none shadow-sm transition-all text-sm"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4 w-full sm:w-auto shrink-0">
+                      <div className="bg-white p-2.5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center min-w-[80px]">
+                        <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1">Factures</p>
+                        <p className="text-xs sm:text-sm font-black text-[#009FE3]">
+                          {invoices.filter(i => i.type === 'facture').reduce((sum, inv) => sum + inv.total_ttc, 0).toLocaleString()} <span className="text-[8px]">DH</span>
                         </p>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Devis</p>
-                        <p className="text-xl font-black text-[#98C13C]">
-                          {invoices.filter(i => i.type === 'devis').reduce((sum, inv) => sum + inv.total_ttc, 0).toLocaleString()} <span className="text-xs">DH</span>
+                      <div className="bg-white p-2.5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center min-w-[80px]">
+                        <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1">Devis</p>
+                        <p className="text-xs sm:text-sm font-black text-[#98C13C]">
+                          {invoices.filter(i => i.type === 'devis').reduce((sum, inv) => sum + inv.total_ttc, 0).toLocaleString()} <span className="text-[8px]">DH</span>
                         </p>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Documents</p>
-                        <p className="text-xl font-black text-gray-900">{invoices.length}</p>
+                      <div className="bg-white p-2.5 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center min-w-[60px]">
+                        <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total</p>
+                        <p className="text-xs sm:text-sm font-black text-gray-900">{invoices.length}</p>
                       </div>
                     </div>
+                  </div>
                 </div>
               </div>
 
               {loading ? (
                 <div className="h-64 flex items-center justify-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#009FE3]"></div>
+                </div>
+              ) : activeTab === 'clients' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {clients.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(client => (
+                    <motion.div
+                      key={client.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-all"
+                    >
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="p-3 bg-emerald-50 text-emerald-500 rounded-2xl">
+                          <User size={24} />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-900">{client.name}</h3>
+                          <p className="text-xs text-gray-400">Inscrit le {new Date(client.created_at).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Documents:</span>
+                          <span className="font-bold text-gray-900">{invoices.filter(i => i.client_id === client.id).length}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Mot de passe:</span>
+                          <span className="font-mono text-xs bg-gray-50 px-2 py-1 rounded">{client.password}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                  {clients.length === 0 && (
+                    <div className="col-span-full py-12 text-center text-gray-400">
+                      Aucun client inscrit pour le moment.
+                    </div>
+                  )}
                 </div>
               ) : invoices.length === 0 ? (
                 <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-gray-200">
@@ -974,27 +1419,35 @@ function AppContent() {
                           {invoice.type === 'devis' ? 'Devis' : 'Facture'} {invoice.invoice_number}
                         </div>
                         <div className="flex gap-2">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingInvoice(invoice);
-                              setShowChoiceModal(true);
-                            }}
-                            className="p-2 text-blue-400 hover:bg-blue-50 rounded-full transition-colors"
-                            title="Modifier"
-                          >
-                            <Pencil size={18} />
-                          </button>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteInvoice(invoice.id!);
-                            }}
-                            className="p-2 text-red-400 hover:bg-red-50 rounded-full transition-colors"
-                            title="Supprimer"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          {userRole === 'admin' ? (
+                            <>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingInvoice(invoice);
+                                  setShowChoiceModal(true);
+                                }}
+                                className="p-2 text-blue-400 hover:bg-blue-50 rounded-full transition-colors"
+                                title="Modifier"
+                              >
+                                <Pencil size={18} />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteInvoice(invoice.id!);
+                                }}
+                                className="p-2 text-red-400 hover:bg-red-50 rounded-full transition-colors"
+                                title="Supprimer"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </>
+                          ) : (
+                            <div className="p-2 text-gray-300">
+                              <Lock size={14} />
+                            </div>
+                          )}
                         </div>
                       </div>
                       
@@ -1033,6 +1486,7 @@ function AppContent() {
                 setView('list');
                 setEditingInvoice(null);
               }} 
+              clients={clients}
             />
           )}
 
@@ -1047,6 +1501,14 @@ function AppContent() {
       </main>
 
       {/* Choice Modal */}
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)}
+        adminPass={adminPassword}
+        visitorPass={visitorPassword}
+        onSave={handleSaveSettings}
+      />
+
       <AnimatePresence>
         {showChoiceModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">

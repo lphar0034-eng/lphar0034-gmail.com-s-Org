@@ -7,8 +7,16 @@ export interface InvoiceItem {
   total_ht: number;
 }
 
+export interface Client {
+  id: string;
+  name: string;
+  password?: string;
+  created_at?: string;
+}
+
 export interface Invoice {
-  id?: number;
+  id?: string | number;
+  client_id?: string;
   invoice_number: string;
   date: string;
   client_name: string;

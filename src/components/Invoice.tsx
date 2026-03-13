@@ -39,7 +39,7 @@ export const Invoice: React.FC = () => {
 
       {/* Invoice Number and Date Table */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-600 mb-4">Facture N° : A01/2024</h1>
+        <h1 className="text-3xl font-bold text-gray-600 mb-4">Facture N° : A01/2026</h1>
         <p className="mb-4 font-bold">Affaire : . . . . . . . . . . . . . .</p>
         
         <table className="w-full border-collapse border-2 border-black text-center">
@@ -53,7 +53,7 @@ export const Invoice: React.FC = () => {
           </thead>
           <tbody>
             <tr>
-              <td className="border-2 border-black py-2">08/01/2024</td>
+              <td className="border-2 border-black py-2">08/01/2026</td>
               <td className="border-2 border-black py-2"></td>
               <td className="border-2 border-black py-2"></td>
               <td className="border-2 border-black py-2 font-bold">CHEQUE</td>
