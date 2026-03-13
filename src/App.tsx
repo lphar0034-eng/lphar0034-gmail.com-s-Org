@@ -621,22 +621,37 @@ function AppContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'facture' | 'devis'>('all');
   const [healthStatus, setHealthStatus] = useState<string>('checking...');
+  const [dbConfigured, setDbConfigured] = useState(true);
 
   useEffect(() => {
+    const checkConfig = () => {
+      const url = (import.meta as any).env.VITE_SUPABASE_URL;
+      const key = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+      setDbConfigured(!!(url && key));
+    };
+    checkConfig();
     fetchInvoices();
     checkHealth();
   }, []);
 
   const checkHealth = async () => {
     try {
-      const { data, error } = await supabase.from('invoices').select('id', { count: 'exact', head: true });
+      const { error } = await supabase.from('invoices').select('id', { count: 'exact', head: true }).limit(1);
       if (!error) {
         setHealthStatus('Connected');
       } else {
-        setHealthStatus('Supabase Error');
+        console.error("Health check error:", error);
+        if (error.message.includes('relation "invoices" does not exist')) {
+          setHealthStatus('Table "invoices" manquante');
+        } else if (error.message === 'Supabase not configured') {
+          setHealthStatus('Config manquante');
+        } else {
+          setHealthStatus(`Erreur: ${error.code || 'Inconnue'}`);
+        }
       }
-    } catch (err) {
-      setHealthStatus('Failed to connect');
+    } catch (err: any) {
+      console.error("Health check catch:", err);
+      setHealthStatus('Erreur de connexion');
     }
   };
 
@@ -688,7 +703,8 @@ function AppContent() {
         if (invError) throw invError;
 
         // Delete old items
-        await supabase.from('invoice_items').delete().eq('invoice_id', invoice.id);
+        const { error: delError } = await supabase.from('invoice_items').delete().eq('invoice_id', invoice.id);
+        if (delError) throw delError;
 
         // Insert new items
         const itemsToInsert = (invoice.items || []).map(item => ({
@@ -699,7 +715,8 @@ function AppContent() {
           total_ht: item.total_ht
         }));
 
-        await supabase.from('invoice_items').insert(itemsToInsert);
+        const { error: itemsError } = await supabase.from('invoice_items').insert(itemsToInsert);
+        if (itemsError) throw itemsError;
       } else {
         // Create new invoice
         const { data: newInv, error: invError } = await supabase
@@ -721,6 +738,7 @@ function AppContent() {
           .single();
 
         if (invError) throw invError;
+        if (!newInv) throw new Error("Erreur: Impossible de récupérer la nouvelle facture.");
 
         const itemsToInsert = (invoice.items || []).map(item => ({
           invoice_id: newInv.id,
@@ -730,7 +748,8 @@ function AppContent() {
           total_ht: item.total_ht
         }));
 
-        await supabase.from('invoice_items').insert(itemsToInsert);
+        const { error: itemsError } = await supabase.from('invoice_items').insert(itemsToInsert);
+        if (itemsError) throw itemsError;
       }
       
       fetchInvoices();
@@ -738,11 +757,21 @@ function AppContent() {
       setEditingInvoice(null);
     } catch (err: any) {
       console.error("Save error:", err);
-      if (err.message && err.message.includes('UNIQUE constraint failed')) {
-        alert("Erreur: Le numéro de facture existe déjà. (هذا الرقم موجود)");
-      } else {
-        alert("Erreur lors de l'enregistrement");
+      let errorMessage = "Erreur lors de l'enregistrement";
+      
+      if (err.message) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          errorMessage = "Erreur: Le numéro de facture existe déjà. (هذا الرقم موجود)";
+        } else if (err.message === 'Supabase not configured') {
+          errorMessage = "Erreur: Supabase n'est pas configuré. Veuillez ajouter les variables d'environnement.";
+        } else if (err.message.includes('relation "invoices" does not exist')) {
+          errorMessage = "Erreur: La table 'invoices' n'existe pas dans votre base de données Supabase.";
+        } else {
+          errorMessage = `Erreur: ${err.message}`;
+        }
       }
+      
+      alert(errorMessage);
     }
   };
 
@@ -784,6 +813,11 @@ function AppContent() {
             <span className={`text-[10px] px-2 py-0.5 rounded ${healthStatus === 'Connected' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
               {healthStatus}
             </span>
+            {!dbConfigured && (
+              <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded flex items-center gap-1">
+                <AlertTriangle size={10} /> Config manquante
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <button 
@@ -814,6 +848,24 @@ function AppContent() {
                 <div>
                   <h1 className="text-4xl font-black text-gray-900 tracking-tight">Tableau de Bord</h1>
                   <p className="text-gray-500 mt-2">Gérez vos factures et réparations en toute simplicité.</p>
+                  
+                  {healthStatus !== 'Connected' && (
+                    <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-2xl max-w-2xl">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="text-red-500 mt-1 shrink-0" size={20} />
+                        <div>
+                          <h3 className="font-bold text-red-900">Problème de connexion à la base de données</h3>
+                          <p className="text-sm text-red-700 mt-1">
+                            L'application ne peut pas sauvegarder vos données. Raison : <span className="font-mono font-bold">{healthStatus}</span>
+                          </p>
+                          <div className="mt-3 text-xs text-red-600 space-y-1">
+                            <p>• Vérifiez vos variables d'environnement <code className="bg-red-100 px-1 rounded">VITE_SUPABASE_URL</code> et <code className="bg-red-100 px-1 rounded">VITE_SUPABASE_ANON_KEY</code>.</p>
+                            <p>• Assurez-vous d'avoir créé les tables <code className="bg-red-100 px-1 rounded">invoices</code> et <code className="bg-red-100 px-1 rounded">invoice_items</code> dans Supabase.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col lg:flex-row items-center gap-6 w-full lg:w-auto">
                   <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm w-full sm:w-auto overflow-x-auto no-scrollbar">
