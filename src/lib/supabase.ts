@@ -12,7 +12,10 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
   : {
       from: () => ({
-        select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }),
+        select: () => ({ 
+          order: () => Promise.resolve({ data: [], error: new Error('Supabase not configured') }),
+          limit: () => Promise.resolve({ data: [], error: new Error('Supabase not configured') }),
+        }),
         insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
         update: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) }),
         delete: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) }),

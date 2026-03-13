@@ -651,7 +651,7 @@ function AppContent() {
       }
     } catch (err: any) {
       console.error("Health check catch:", err);
-      setHealthStatus('Erreur de connexion');
+      setHealthStatus(`Erreur: ${err.message || 'Connexion échouée'}`);
     }
   };
 
