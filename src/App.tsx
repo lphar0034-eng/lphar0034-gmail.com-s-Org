@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Component, ErrorInfo, ReactNode } from 'react';
-import { Plus, FileText, Trash2, Printer, ChevronLeft, Download, Loader2, Pencil, Search, AlertTriangle } from 'lucide-react';
+import { Plus, FileText, Trash2, Printer, ChevronLeft, Download, Loader2, Pencil, Search, AlertTriangle, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from './lib/supabase';
 import { Logo } from './components/Logo';
@@ -635,18 +635,21 @@ function AppContent() {
   }, []);
 
   const checkHealth = async () => {
+    setHealthStatus('Checking...');
     try {
-      const { error } = await supabase.from('invoices').select('id', { count: 'exact', head: true }).limit(1);
+      const { error } = await supabase.from('invoices').select('id').limit(1);
       if (!error) {
         setHealthStatus('Connected');
       } else {
         console.error("Health check error:", error);
-        if (error.message.includes('relation "invoices" does not exist')) {
-          setHealthStatus('Table "invoices" manquante');
-        } else if (error.message === 'Supabase not configured') {
-          setHealthStatus('Config manquante');
+        if (error.message === 'Supabase not configured') {
+          setHealthStatus('Config manquante (Check Secrets)');
+        } else if (error.message.includes('relation "invoices" does not exist')) {
+          setHealthStatus('Tables non créées (SQL)');
+        } else if (error.message.includes('JWT')) {
+          setHealthStatus('Clé API invalide');
         } else {
-          setHealthStatus(`Erreur: ${error.code || 'Inconnue'}`);
+          setHealthStatus(`Erreur: ${error.code || error.message}`);
         }
       }
     } catch (err: any) {
@@ -810,9 +813,24 @@ function AppContent() {
           <div className="flex items-center gap-2">
             <Logo className="scale-75 origin-left" />
             <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-400">v2.1-supabase</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded ${healthStatus === 'Connected' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-              {healthStatus}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className={`text-[10px] px-2 py-0.5 rounded ${
+                healthStatus === 'Connected' ? 'bg-green-100 text-green-600' : 
+                healthStatus === 'Checking...' ? 'bg-blue-100 text-blue-600' :
+                'bg-red-100 text-red-600'
+              }`}>
+                {healthStatus}
+              </span>
+              {healthStatus !== 'Connected' && healthStatus !== 'Checking...' && (
+                <button 
+                  onClick={checkHealth}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  title="Réessayer la connexion"
+                >
+                  <RefreshCw size={10} className="text-gray-400" />
+                </button>
+              )}
+            </div>
             {!dbConfigured && (
               <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded flex items-center gap-1">
                 <AlertTriangle size={10} /> Config manquante
