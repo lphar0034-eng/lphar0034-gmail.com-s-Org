@@ -145,7 +145,7 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
         {/* Invoice Number and Info Table */}
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-black mb-2">{invoice.type === 'devis' ? 'DEVIS' : 'Facture'} N° : {invoice.invoice_number}</h1>
-          <p className="mb-2 font-bold text-sm">Affaire : ....................................................................................................................................................................</p>
+          <p className="mb-2 font-bold text-sm">Affaire : ..............................</p>
           
           <table className="w-full border-collapse border-2 border-black text-center text-xs">
             <thead>
