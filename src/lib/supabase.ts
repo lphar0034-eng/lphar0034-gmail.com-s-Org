@@ -7,4 +7,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("Supabase credentials missing. Check your environment variables.");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Create a mock client if credentials are missing to prevent crash
+export const supabase = (supabaseUrl && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : {
+      from: () => ({
+        select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }),
+        insert: () => Promise.resolve({ data: null, error: new Error('Supabase not configured') }),
+        update: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) }),
+        delete: () => ({ eq: () => Promise.resolve({ error: new Error('Supabase not configured') }) }),
+      })
+    } as any;
