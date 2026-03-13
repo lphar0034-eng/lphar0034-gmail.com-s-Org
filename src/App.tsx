@@ -70,7 +70,11 @@ const Login: React.FC<{
       }
     } catch (err: any) {
       console.error("Login error:", err);
-      setError("Une erreur est survenue lors de la connexion");
+      if (err?.message?.includes('relation "clients" does not exist')) {
+        setError("Erreur: La table 'clients' n'existe pas dans la base de données. Veuillez la créer.");
+      } else {
+        setError("Une erreur est survenue lors de la connexion");
+      }
     } finally {
       setIsLoggingIn(false);
     }
@@ -163,6 +167,11 @@ const Login: React.FC<{
               {showLogin === 'visitor' && !error && (
                 <p className="text-gray-400 text-[10px] mt-2 ml-1">
                   * Si c'est votre première visite, ce mot de passe sera enregistré.
+                </p>
+              )}
+              {showLogin === 'admin' && !error && (
+                <p className="text-gray-400 text-[10px] mt-2 ml-1">
+                  * Le mot de passe par défaut est "admin123"
                 </p>
               )}
             </div>
