@@ -18,6 +18,7 @@ const Login: React.FC<{
   const [error, setError] = useState('');
   const [showLogin, setShowLogin] = useState<'admin' | 'visitor' | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,11 +82,14 @@ const Login: React.FC<{
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div 
+      className="min-h-screen bg-gray-50 flex items-center justify-center p-4 cursor-pointer"
+      onClick={() => !isRevealed && setIsRevealed(true)}
+    >
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-100"
+        className={`bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-100 transition-all duration-500 ${!isRevealed ? 'py-16' : ''}`}
       >
         <div className="flex justify-center mb-8">
           <Logo className="w-48 sm:w-64" />
@@ -93,10 +97,18 @@ const Login: React.FC<{
         
         <h2 className="text-2xl font-bold text-center text-gray-800 mb-8">Bienvenue</h2>
 
-        {!showLogin ? (
-          <div className="space-y-4">
+        {!isRevealed ? (
+          <div className="text-center text-gray-400 text-sm animate-pulse mt-4">
+            Cliquez pour continuer
+          </div>
+        ) : !showLogin ? (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
             <button 
-              onClick={() => setShowLogin('admin')}
+              onClick={(e) => { e.stopPropagation(); setShowLogin('admin'); }}
               className="w-full flex items-center justify-between p-4 bg-white border-2 border-gray-100 rounded-2xl hover:border-[#009FE3] hover:bg-blue-50 transition-all group"
             >
               <div className="flex items-center gap-4">
@@ -112,7 +124,7 @@ const Login: React.FC<{
             </button>
 
             <button 
-              onClick={() => setShowLogin('visitor')}
+              onClick={(e) => { e.stopPropagation(); setShowLogin('visitor'); }}
               className="w-full flex items-center justify-between p-4 bg-white border-2 border-gray-100 rounded-2xl hover:border-emerald-500 hover:bg-emerald-50 transition-all group"
             >
               <div className="flex items-center gap-4">
@@ -126,9 +138,15 @@ const Login: React.FC<{
               </div>
               <ChevronLeft className="rotate-180 text-gray-300" size={20} />
             </button>
-          </div>
+          </motion.div>
         ) : (
-          <form onSubmit={handleLogin} className="space-y-6">
+          <motion.form 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            onSubmit={handleLogin} 
+            className="space-y-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             {showLogin === 'visitor' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -169,17 +187,12 @@ const Login: React.FC<{
                   * Si c'est votre première visite, ce mot de passe sera enregistré.
                 </p>
               )}
-              {showLogin === 'admin' && !error && (
-                <p className="text-gray-400 text-[10px] mt-2 ml-1">
-                  * Le mot de passe par défaut est "admin123"
-                </p>
-              )}
             </div>
             
             <div className="flex gap-3">
               <button 
                 type="button"
-                onClick={() => setShowLogin(null)}
+                onClick={(e) => { e.stopPropagation(); setShowLogin(null); setError(''); setPassword(''); setCompanyName(''); }}
                 className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors"
               >
                 Retour
@@ -196,7 +209,7 @@ const Login: React.FC<{
                 {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : 'Se connecter'}
               </button>
             </div>
-          </form>
+          </motion.form>
         )}
       </motion.div>
     </div>
@@ -324,63 +337,9 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
   const invoiceRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const downloadPDF = async () => {
-    if (!invoiceRef.current) return;
-    setIsGenerating(true);
-    try {
-      // Small delay to ensure everything is rendered
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const element = invoiceRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        onclone: (clonedDoc) => {
-          const clonedElement = clonedDoc.querySelector('.invoice-container');
-          if (clonedElement) {
-            (clonedElement as HTMLElement).style.display = 'block';
-            (clonedElement as HTMLElement).style.boxShadow = 'none';
-          }
-        }
-      });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      // Ensure it fits on one page (A4 height is 297mm)
-      let finalWidth = pdfWidth;
-      let finalHeight = pdfHeight;
-      let xOffset = 0;
-      let yOffset = 0;
-
-      if (finalHeight > 297) {
-        const ratio = 297 / finalHeight;
-        finalHeight = 297;
-        finalWidth = finalWidth * ratio;
-        xOffset = (pdfWidth - finalWidth) / 2;
-      }
-
-      pdf.addImage(imgData, 'JPEG', xOffset, yOffset, finalWidth, finalHeight);
-      
-      // Sanitize filename
-      const prefix = invoice.type === 'devis' ? 'Devis' : 'Facture';
-      const safeFileName = `${prefix}_${invoice.invoice_number.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-      pdf.save(safeFileName);
-    } catch (error: any) {
-      console.error('Error generating PDF:', error);
-      alert(`Erreur lors de la génération du PDF: ${error?.message || 'Erreur inconnue'}. Essayez d'utiliser le bouton "Imprimer" et choisissez "Enregistrer au format PDF".`);
-    } finally {
-      setIsGenerating(false);
-    }
+  const downloadPDF = () => {
+    // Native print dialog is the most reliable way to get a true vector PDF in the browser
+    window.print();
   };
 
   return (
@@ -434,160 +393,188 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
       >
         <div 
           ref={invoiceRef}
-          className="bg-white pt-4 px-4 sm:px-10 pb-6 shadow-2xl border border-gray-200 font-sans text-black flex flex-col flex-grow min-w-[800px] lg:min-w-0 mx-auto origin-top sm:origin-center scale-[0.45] xs:scale-[0.6] sm:scale-100 mb-[-400px] xs:mb-[-250px] sm:mb-0"
+          className="bg-white pt-8 px-8 sm:px-12 pb-8 shadow-2xl border border-gray-200 font-sans text-black flex flex-col flex-grow min-w-[800px] lg:min-w-0 mx-auto origin-top sm:origin-center scale-[0.45] xs:scale-[0.6] sm:scale-100 mb-[-400px] xs:mb-[-250px] sm:mb-0"
+          style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
         >
-        {/* Header with Logo */}
-        <div className="mb-6">
-          <Logo className="w-48 sm:w-64 -mt-2 mb-4" />
-          
-          <div className="flex justify-between items-start text-xs">
-            {/* Left Info */}
-            <div className="space-y-1 relative pr-8">
-              <div className="absolute -top-2 -left-2 -right-2 -bottom-2 border border-black/20 rounded-lg pointer-events-none"></div>
-              <div className="absolute -top-2 -left-2 w-4 h-4 border-t-2 border-l-2 border-black"></div>
-              <div className="absolute -bottom-2 -right-2 w-4 h-4 border-b-2 border-r-2 border-black"></div>
-              
-              <div className="p-2 space-y-1">
-                <p className="font-bold text-sm">{invoice.type === 'devis' ? 'DEVIS' : 'FACTURE'} N° {invoice.invoice_number}</p>
-                <p><span className="font-medium">Votre contact :</span> A. EL BAKKARI</p>
-                <p><span className="font-medium">Tél. :</span> 06 61 96 57 05 - 06 61 86 82 38</p>
-                <p><span className="font-medium">E-mail :</span> contact.ecoair@gmail.com</p>
-              </div>
-            </div>
-
-            {/* Right Info (Client) */}
-            <div className="space-y-1 text-xs min-w-[250px]">
-              <p><span className="font-medium">A l'attent. de :</span> <span className="font-bold">{invoice.client_name}</span></p>
-              <p><span className="font-medium">Tél. :</span></p>
-              <p><span className="font-medium">GSM:</span></p>
-              <p><span className="font-medium">Email :</span></p>
-              <p><span className="font-medium">Adresse:</span> {invoice.client_address || 'RABAT'}</p>
+          {/* Header */}
+          <div className="mb-4">
+            {/* Logo */}
+            <div className="w-80">
+              <Logo className="w-full" />
             </div>
           </div>
-        </div>
 
-        {/* Affaire and Info Table */}
-        <div className="mb-4">
-          <p className="mb-2 font-bold text-sm">Affaire : ..............................</p>
-          
-          <table className="w-full border-collapse border-2 border-black text-center text-xs">
+          {/* Document Title & Affaire & Client Info */}
+          <div className="flex justify-between items-end mb-2">
+            <div className="mb-2">
+              {invoice.type === 'facture' ? (
+                <h1 className="text-2xl font-bold text-gray-500 mb-2">Facture N° : {invoice.invoice_number}</h1>
+              ) : (
+                <div className="relative inline-block pr-8 mb-4">
+                  {/* Curved brackets for Devis */}
+                  <div className="absolute top-0 bottom-0 left-0 w-4 border-l-2 border-black rounded-l-3xl"></div>
+                  <div className="absolute top-0 bottom-0 right-0 w-4 border-r-2 border-black rounded-r-3xl"></div>
+                  <div className="px-6 py-2 text-sm">
+                    <p className="font-bold">DEVIS N° {invoice.invoice_number}</p>
+                    <p>Votre contact : ET-TAYEB ABDERRAHIM</p>
+                    <p>Tél. : 06 61 86 82 38</p>
+                    <p>E-mail : contact.ecoair@gmail.com</p>
+                  </div>
+                </div>
+              )}
+              <p className="text-sm font-bold">Affaire : . . . . . . . . . . . . . .</p>
+            </div>
+
+            {/* Client Info Box */}
+            {invoice.type === 'facture' && (
+              <div className="relative w-[360px] p-6 text-sm">
+                {/* Corner brackets */}
+                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-black"></div>
+                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-black"></div>
+                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-black"></div>
+                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-black"></div>
+                
+                <p className="text-gray-700 mb-2">A l'attent. de :</p>
+                <table className="ml-4 text-sm w-full">
+                  <tbody>
+                    <tr>
+                      <td className="py-0.5 text-gray-600 w-20">Sté:</td>
+                      <td className="py-0.5 font-medium uppercase">{invoice.client_name}</td>
+                    </tr>
+                    {invoice.client_ice && (
+                      <tr>
+                        <td className="py-0.5 text-gray-600">ICE :</td>
+                        <td className="py-0.5 font-medium">{invoice.client_ice}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="py-0.5 text-gray-600 align-top">Adresse:</td>
+                      <td className="py-0.5 font-medium uppercase align-top">{invoice.client_address || 'CASABLANCA'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Info Table */}
+          <table className="w-full border-collapse border border-black text-center text-sm mb-2">
             <thead>
-              <tr className="bg-gray-200">
-                <th className="border-2 border-black py-1 px-2 font-bold w-1/2">Date :</th>
-                <th className="border-2 border-black py-1 px-2 font-bold w-1/2">Bon de Commande</th>
+              <tr className="bg-gray-300">
+                <th className="border border-black py-1 px-2 font-bold">Date :</th>
+                <th className="border border-black py-1 px-2 font-bold">Bon de Commande</th>
+                {invoice.type === 'facture' && (
+                  <>
+                    <th className="border border-black py-1 px-2 font-bold">Bon de Livraison</th>
+                    <th className="border border-black py-1 px-2 font-bold">Mode de Règlement</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td className="border-2 border-black py-1.5">{invoice.date}</td>
-                <td className="border-2 border-black py-1.5 font-bold">. . .</td>
+                <td className="border border-black py-1">{invoice.date.split('-').reverse().join('-')}</td>
+                <td className="border border-black py-1 font-bold">. . .</td>
+                {invoice.type === 'facture' && (
+                  <>
+                    <td className="border border-black py-1"></td>
+                    <td className="border border-black py-1 font-bold uppercase">{invoice.mode_reglement}</td>
+                  </>
+                )}
               </tr>
             </tbody>
           </table>
-        </div>
 
-        {/* Main Items Table */}
-        <table className="w-full border-collapse border-2 border-black mb-0 text-sm">
-          <thead>
-            <tr className="bg-gray-200">
-              <th className="border-2 border-black py-1 px-2 w-16 text-center">Article</th>
-              <th className="border-2 border-black py-1 px-2 text-center">Désignation</th>
-              <th className="border-2 border-black py-1 px-2 w-12 text-center">Qté</th>
-              <th className="border-2 border-black py-1 px-2 w-24 text-center">Prix U. HT</th>
-              <th className="border-2 border-black py-1 px-2 w-28 text-center">Montant HT</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoice.items.map((item, idx) => (
-              <tr key={idx}>
-                <td className="border-x-2 border-black p-2 align-top text-center font-medium"></td>
-                <td className="border-x-2 border-black p-2 align-top whitespace-pre-line text-xs min-h-[100px]">
-                  {(() => {
-                    const lines = item.description.split('\n');
-                    const title = lines[0];
-                    const details = lines.slice(1).join('\n');
-                    return (
-                      <>
-                        <div className="font-bold underline mb-1 uppercase">{title}</div>
-                        <div className="font-medium">{details}</div>
-                      </>
-                    );
-                  })()}
-                </td>
-                <td className="border-x-2 border-black p-2 align-top text-center font-medium">{item.quantity}</td>
-                <td className="border-x-2 border-black p-2 align-top text-right font-medium">{item.unit_price.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
-                <td className="border-x-2 border-black p-2 align-top text-right font-bold">{item.total_ht.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
+          {/* Main Items Table */}
+          <table className="w-full border-collapse mb-0 text-sm flex-grow">
+            <thead>
+              <tr className="bg-gray-300">
+                <th className="border border-black py-1 px-2 w-16 text-center font-bold">Article</th>
+                <th className="border border-black py-1 px-2 text-center font-bold">Désignation</th>
+                <th className="border border-black py-1 px-2 w-12 text-center font-bold">Qté</th>
+                <th className="border border-black py-1 px-2 w-24 text-center font-bold">Prix U. HT</th>
+                <th className="border border-black py-1 px-2 w-28 text-center font-bold">Montant HT</th>
               </tr>
-            ))}
-            {/* Fill remaining space to match the photo's look */}
-            <tr style={{ height: `${Math.max(20, 300 - (invoice.items.length * 50))}px` }}>
-              <td className="border-x-2 border-black"></td>
-              <td className="border-x-2 border-black"></td>
-              <td className="border-x-2 border-black"></td>
-              <td className="border-x-2 border-black"></td>
-              <td className="border-x-2 border-black"></td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Totals Section */}
-        <div className="flex justify-end mb-4">
-          <table className="w-[280px] border-collapse border-2 border-black text-xs">
+            </thead>
             <tbody>
-              <tr className="bg-gray-200">
-                <td className="border-2 border-black px-2 py-1 font-bold">Total H,T</td>
-                <td className="border-2 border-black px-2 py-1 text-right font-bold">{invoice.total_ht.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
+              {/* Items */}
+              {invoice.items.map((item, idx) => (
+                <tr key={idx}>
+                  <td className="border-x border-black p-2 align-top text-center"></td>
+                  <td className="border-x border-black p-2 align-top whitespace-pre-line">
+                    {(() => {
+                      const lines = item.description.split('\n');
+                      const title = lines[0];
+                      const details = lines.slice(1).join('\n');
+                      return (
+                        <>
+                          {title && <div className={details ? "mb-1" : ""}>{title.startsWith('-') ? title : <span className="underline">{title}</span>}</div>}
+                          {details && <div>{details}</div>}
+                        </>
+                      );
+                    })()}
+                  </td>
+                  <td className="border-x border-black p-2 align-top text-center">{item.quantity}</td>
+                  <td className="border-x border-black p-2 align-top text-right">{item.unit_price.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
+                  <td className="border-x border-black p-2 align-top text-right font-bold">{item.total_ht.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              ))}
+              {/* Empty space filler */}
+              <tr style={{ height: `${Math.max(20, 150 - (invoice.items.length * 50))}px` }}>
+                <td className="border-x border-b border-black"></td>
+                <td className="border-x border-b border-black"></td>
+                <td className="border-x border-b border-black"></td>
+                <td className="border-x border-b border-black"></td>
+                <td className="border-x border-b border-black"></td>
+              </tr>
+              {/* Totals Rows integrated into main table for perfect alignment */}
+              <tr>
+                <td colSpan={2} rowSpan={4} className="border-0 pt-4 pr-4 align-top text-left">
+                  {invoice.type === 'facture' ? (
+                    <div className="text-sm">
+                      <p className="mb-1">Arrêtée la présente facture à la somme de :</p>
+                      <p className="font-bold uppercase">{numberToFrenchWords(invoice.total_ttc)}</p>
+                    </div>
+                  ) : (
+                    <div className="text-xs">
+                      <p className="font-bold italic mb-1">Remarque :</p>
+                      <p>La commande n'est prise en compte que s'il y a un Bon de commande ou un cachet de la mention « Bon pour accord » sur le devis.</p>
+                      <p>Tout travail effectué non mentionné sur le présent devis fera l'objet d'une facture séparée.</p>
+                    </div>
+                  )}
+                </td>
+                <td colSpan={2} className="border border-black py-1 px-2 text-center bg-gray-300 text-xs">Total H,T</td>
+                <td className="border border-black py-1 px-2 text-right font-bold bg-white text-xs">{invoice.total_ht.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
               </tr>
               <tr>
-                <td className="border-2 border-black px-2 py-1 font-bold italic">T.V.A.%</td>
-                <td className="border-2 border-black px-2 py-1 text-right font-bold">{invoice.tva_rate}%</td>
+                <td colSpan={2} className="border border-black py-1 px-2 text-center bg-gray-300 text-xs">T.V.A.%</td>
+                <td className="border border-black py-1 px-2 text-right bg-white text-xs">{invoice.tva_rate}%</td>
               </tr>
               <tr>
-                <td className="border-2 border-black px-2 py-1 font-bold italic">MONTANT T.V.A.</td>
-                <td className="border-2 border-black px-2 py-1 text-right font-bold">{invoice.tva_amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
+                <td colSpan={2} className="border border-black py-1 px-2 text-center bg-gray-300 text-xs">MONTANT T.V.A.</td>
+                <td className="border border-black py-1 px-2 text-right bg-white text-xs">{invoice.tva_amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
               </tr>
-              <tr className="bg-gray-200">
-                <td className="border-2 border-black px-2 py-1 font-bold text-sm">TOTAL TTC</td>
-                <td className="border-2 border-black px-2 py-1 text-right font-bold text-sm">{invoice.total_ttc.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
+              <tr>
+                <td colSpan={2} className="border border-black py-1 px-2 text-center font-bold bg-gray-300 text-xs">TOTAL TTC</td>
+                <td className="border border-black py-1 px-2 text-right font-bold bg-white text-xs">{invoice.total_ttc.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
               </tr>
             </tbody>
           </table>
-        </div>
 
-        {/* Amount in words / Remarque */}
-        <div className="mb-6 text-[10px] space-y-4">
-          {invoice.type === 'facture' ? (
-            <div>
-              <p className="italic mb-0.5 underline">Arrêtée la présente facture à la somme de :</p>
-              <p className="font-bold uppercase tracking-tight leading-tight">
-                {numberToFrenchWords(invoice.total_ttc)}
-              </p>
-            </div>
-          ) : (
-            <div className="max-w-[500px]">
-              <p className="font-bold italic underline mb-1">Remarque :</p>
-              <p className="leading-relaxed">
-                La commande n’est prise en compte que s’il y a un Bon de commande ou un cachet de la mention « Bon pour accord » sur le devis.<br />
-                Tout travail effectué non mentionné sur le présent devis fera l’objet d’une facture séparée.
-              </p>
-            </div>
-          )}
-        </div>
+          {/* Bottom Section (Signature) */}
+          <div className="flex justify-end mt-0">
+            {invoice.type === 'facture' && (
+              <div className="mt-8 font-bold text-center w-64">DIRECTION GENERALE</div>
+            )}
+          </div>
 
-        {/* Signature Area */}
-        <div className="text-right mb-12 mt-auto">
-          <p className="font-bold text-sm mr-12 uppercase">Direction Générale</p>
+          {/* Footer */}
+          <div className="mt-12 text-center text-xs">
+            <p>RC: 490607 - Patente: 34101837 - I.F.: 48559866 - CNSS: 2432068 - ICE: 002711861000009</p>
+            <p>26, AV MERS SULTAN, ETG 1, N°3, Casablanca</p>
+            <p>Tél.: 06 62 22 84 21 / 06 61 96 57 05/ - E-mail : contact.ecoair@gmail.com</p>
+          </div>
         </div>
-
-        {invoice.type === 'devis' && <div className="mt-auto mb-10"></div>}
-
-        {/* Footer */}
-        <div className="border-t border-gray-300 pt-4 text-[9px] text-center space-y-0.5 mt-4">
-          <p className="font-bold">RC: 490607 - Patente: 34101837 - I.F.: 48559866 - CNSS: 2432068 - ICE: 002711861000009</p>
-          <p>26, AV MERS SULTAN, ETG 1, N°3, Casablanca</p>
-          <p>Tél.: 06 62 22 84 21 / 06 61 96 57 05/ - E-mail : contact.ecoair@gmail.com</p>
-        </div>
-      </div>
     </motion.div>
 
       <div className="mt-8 flex flex-wrap justify-center gap-4 no-print">
@@ -596,12 +583,6 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
           className="flex items-center gap-2 px-6 py-2 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
         >
           <ChevronLeft size={18} /> Retour
-        </button>
-        <button 
-          onClick={() => window.print()}
-          className="flex items-center gap-2 px-6 py-2 rounded-full bg-gray-800 text-white hover:bg-gray-900 transition-colors"
-        >
-          <Printer size={18} /> Imprimer
         </button>
         <button 
           onClick={downloadPDF}
@@ -963,6 +944,10 @@ function AppContent() {
   const [view, setView] = useState<'list' | 'form' | 'preview'>('list');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editingClient, setEditingClient] = useState<string | null>(null);
+  const [newClientPassword, setNewClientPassword] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState<{isOpen: boolean, message: string, onConfirm: () => void}>({ isOpen: false, message: '', onConfirm: () => {} });
+  const [alertDialog, setAlertDialog] = useState<{isOpen: boolean, message: string}>({ isOpen: false, message: '' });
   const [editMode, setEditMode] = useState<'edit' | 'copy'>('copy');
   const [showChoiceModal, setShowChoiceModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -1152,18 +1137,75 @@ function AppContent() {
         }
       }
       
-      alert(errorMessage);
+      setAlertDialog({ isOpen: true, message: errorMessage });
     }
   };
 
   const deleteInvoice = async (id: string | number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet élément ?')) return;
+    setConfirmDialog({
+      isOpen: true,
+      message: 'Êtes-vous sûr de vouloir supprimer cet élément ?',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from('invoices').delete().eq('id', id);
+          if (error) throw error;
+          fetchInvoices();
+        } catch (err) {
+          console.error("Delete error:", err);
+        }
+      }
+    });
+  };
+
+  const deleteClient = async (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      message: 'Êtes-vous sûr de vouloir supprimer ce client ? Toutes ses factures deviendront orphelines.',
+      onConfirm: async () => {
+        try {
+          // For testing without Supabase configured
+          if (!dbConfigured) {
+            setClients(clients.filter(c => c.id !== id));
+            setInvoices(invoices.map(inv => inv.client_id === id ? { ...inv, client_id: null } : inv));
+            return;
+          }
+
+          // Set client_id to null for invoices associated with this client
+          const { error: updateError } = await supabase.from('invoices').update({ client_id: null }).eq('client_id', id);
+          if (updateError) throw updateError;
+          
+          const { error: deleteError } = await supabase.from('clients').delete().eq('id', id);
+          if (deleteError) throw deleteError;
+          
+          fetchClients();
+          fetchInvoices(); // Refresh invoices too since they might have changed
+        } catch (err: any) {
+          console.error("Delete client error:", err);
+          setAlertDialog({ isOpen: true, message: `Erreur lors de la suppression du client: ${err.message || JSON.stringify(err)}` });
+        }
+      }
+    });
+  };
+
+  const updateClientPassword = async (id: string, newPass: string) => {
+    if (!newPass.trim()) return;
     try {
-      const { error } = await supabase.from('invoices').delete().eq('id', id);
+      // For testing without Supabase configured
+      if (!dbConfigured) {
+        setClients(clients.map(c => c.id === id ? { ...c, password: newPass.trim() } : c));
+        setEditingClient(null);
+        setNewClientPassword('');
+        return;
+      }
+
+      const { error } = await supabase.from('clients').update({ password: newPass.trim() }).eq('id', id);
       if (error) throw error;
-      fetchInvoices();
-    } catch (err) {
-      console.error("Delete error:", err);
+      fetchClients();
+      setEditingClient(null);
+      setNewClientPassword('');
+    } catch (err: any) {
+      console.error("Update password error:", err);
+      setAlertDialog({ isOpen: true, message: `Erreur lors de la modification du mot de passe: ${err.message || JSON.stringify(err)}` });
     }
   };
 
@@ -1382,10 +1424,56 @@ function AppContent() {
                           <span className="text-gray-500">Documents:</span>
                           <span className="font-bold text-gray-900">{invoices.filter(i => i.client_id === client.id).length}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between items-center text-sm">
                           <span className="text-gray-500">Mot de passe:</span>
-                          <span className="font-mono text-xs bg-gray-50 px-2 py-1 rounded">{client.password}</span>
+                          {editingClient === client.id ? (
+                            <div className="flex items-center gap-1">
+                              <input 
+                                type="text"
+                                value={newClientPassword}
+                                onChange={(e) => setNewClientPassword(e.target.value)}
+                                className="w-24 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-[#009FE3] outline-none"
+                              />
+                              <button 
+                                onClick={() => updateClientPassword(client.id, newClientPassword)}
+                                className="p-1 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                title="Enregistrer"
+                              >
+                                <Save size={14} />
+                              </button>
+                              <button 
+                                onClick={() => setEditingClient(null)}
+                                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded transition-colors"
+                                title="Annuler"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs bg-gray-50 px-2 py-1 rounded">{client.password}</span>
+                              <button 
+                                onClick={() => {
+                                  setEditingClient(client.id);
+                                  setNewClientPassword(client.password);
+                                }}
+                                className="text-blue-400 hover:text-blue-600 transition-colors"
+                                title="Modifier le mot de passe"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            </div>
+                          )}
                         </div>
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+                        <button 
+                          onClick={() => deleteClient(client.id)}
+                          className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                          Supprimer
+                        </button>
                       </div>
                     </motion.div>
                   ))}
@@ -1560,6 +1648,65 @@ function AppContent() {
                   className="w-full py-3 text-gray-400 font-medium hover:text-gray-600 transition-colors"
                 >
                   Annuler
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm Dialog Modal */}
+      <AnimatePresence>
+        {confirmDialog.isOpen && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Confirmation</h3>
+              <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
+              <div className="flex justify-end gap-3">
+                <button 
+                  onClick={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+                  className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={() => {
+                    confirmDialog.onConfirm();
+                    setConfirmDialog({ ...confirmDialog, isOpen: false });
+                  }}
+                  className="px-4 py-2 bg-red-500 text-white font-medium hover:bg-red-600 rounded-xl transition-colors shadow-sm shadow-red-500/20"
+                >
+                  Confirmer
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Alert Dialog Modal */}
+      <AnimatePresence>
+        {alertDialog.isOpen && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Information</h3>
+              <p className="text-gray-600 mb-6">{alertDialog.message}</p>
+              <div className="flex justify-end">
+                <button 
+                  onClick={() => setAlertDialog({ ...alertDialog, isOpen: false })}
+                  className="px-6 py-2 bg-[#009FE3] text-white font-medium hover:bg-[#0085C2] rounded-xl transition-colors shadow-sm shadow-[#009FE3]/20"
+                >
+                  OK
                 </button>
               </div>
             </motion.div>
