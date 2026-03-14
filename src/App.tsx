@@ -349,38 +349,45 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
           @media print {
             @page {
               size: A4;
-              margin: 0; /* This removes browser headers/footers */
+              margin: 0;
             }
             body {
-              background: white;
               margin: 0;
+              padding: 0;
+              background: white;
+            }
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              box-sizing: border-box !important;
             }
             .no-print {
               display: none !important;
             }
             .invoice-container {
-              box-shadow: none !important;
-              border: none !important;
-              margin: 0 auto !important;
               padding: 0 !important;
+              margin: 0 !important;
               width: 210mm !important;
               height: 297mm !important;
-              overflow: hidden !important;
+              overflow: visible !important;
+              background: white !important;
               display: block !important;
+              box-shadow: none !important;
+              border: none !important;
             }
             .invoice-container > div {
               width: 210mm !important;
+              min-height: 297mm !important;
+              height: auto !important;
               min-width: 210mm !important;
               padding: 15mm !important;
               border: none !important;
               box-shadow: none !important;
               margin: 0 !important;
               flex-grow: 0 !important;
-            }
-            .bg-gray-200 {
-              background-color: #e5e7eb !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
+              transform: none !important;
+              scale: 1 !important;
+              margin-bottom: 0 !important;
             }
           }
         `}
@@ -393,7 +400,7 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
       >
         <div 
           ref={invoiceRef}
-          className="bg-white pt-8 px-8 sm:px-12 pb-8 shadow-2xl border border-gray-200 font-sans text-black flex flex-col flex-grow min-w-[800px] lg:min-w-0 mx-auto origin-top sm:origin-center scale-[0.45] xs:scale-[0.6] sm:scale-100 mb-[-400px] xs:mb-[-250px] sm:mb-0"
+          className="bg-white pt-8 px-8 sm:px-12 pb-8 shadow-2xl border border-gray-200 font-sans text-black flex flex-col flex-grow min-w-[800px] lg:min-w-0 min-h-[297mm] mx-auto origin-top sm:origin-center scale-[0.45] xs:scale-[0.6] sm:scale-100 mb-[-400px] xs:mb-[-250px] sm:mb-0"
           style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}
         >
           {/* Header */}
@@ -486,7 +493,7 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
           </table>
 
           {/* Main Items Table */}
-          <table className="w-full border-collapse mb-0 text-sm flex-grow">
+          <table className="w-full border-collapse mb-0 text-sm">
             <thead>
               <tr className="bg-gray-300">
                 <th className="border border-black py-1 px-2 w-16 text-center font-bold">Article</th>
@@ -497,9 +504,8 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
               </tr>
             </thead>
             <tbody>
-              {/* Items */}
-              {invoice.items.map((item, idx) => (
-                <tr key={idx}>
+                       {invoice.items.map((item, idx) => (
+                <tr key={idx} className="border-b border-black">
                   <td className="border-x border-black p-2 align-top text-center"></td>
                   <td className="border-x border-black p-2 align-top whitespace-pre-line">
                     {(() => {
@@ -519,59 +525,54 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
                   <td className="border-x border-black p-2 align-top text-right font-bold">{item.total_ht.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}</td>
                 </tr>
               ))}
-              {/* Empty space filler */}
-              <tr style={{ height: `${Math.max(20, 150 - (invoice.items.length * 50))}px` }}>
-                <td className="border-x border-b border-black"></td>
-                <td className="border-x border-b border-black"></td>
-                <td className="border-x border-b border-black"></td>
-                <td className="border-x border-b border-black"></td>
-                <td className="border-x border-b border-black"></td>
-              </tr>
-              {/* Totals Rows integrated into main table for perfect alignment */}
+              {/* Totals Rows integrated into main table */}
               <tr>
-                <td colSpan={2} rowSpan={4} className="border-0 pt-4 pr-4 align-top text-left">
+                <td colSpan={2} rowSpan={4} className="pt-4 px-4 align-top text-left">
                   {invoice.type === 'facture' ? (
                     <div className="text-sm">
-                      <p className="mb-1">Arrêtée la présente facture à la somme de :</p>
-                      <p className="font-bold uppercase">{numberToFrenchWords(invoice.total_ttc)}</p>
+                      <p className="mb-2 italic">Arrêtée la présente facture à la somme de :</p>
+                      <p className="font-bold uppercase text-xs leading-relaxed">{numberToFrenchWords(invoice.total_ttc)}</p>
                     </div>
                   ) : (
-                    <div className="text-xs">
+                    <div className="text-[10px] leading-tight text-gray-700">
                       <p className="font-bold italic mb-1">Remarque :</p>
-                      <p>La commande n'est prise en compte que s'il y a un Bon de commande ou un cachet de la mention « Bon pour accord » sur le devis.</p>
+                      <p className="mb-1">La commande n'est prise en compte que s'il y a un Bon de commande ou un cachet de la mention « Bon pour accord » sur le devis.</p>
                       <p>Tout travail effectué non mentionné sur le présent devis fera l'objet d'une facture séparée.</p>
                     </div>
                   )}
                 </td>
-                <td colSpan={2} className="border border-black py-1 px-2 text-center bg-gray-300 text-xs">Total H,T</td>
-                <td className="border border-black py-1 px-2 text-right font-bold bg-white text-xs">{invoice.total_ht.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
+                <td colSpan={2} className="border border-black py-1.5 px-3 text-center bg-gray-300 text-xs font-bold">Total H,T</td>
+                <td className="border border-black py-1.5 px-3 text-right font-bold bg-white text-xs">{invoice.total_ht.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
               </tr>
               <tr>
-                <td colSpan={2} className="border border-black py-1 px-2 text-center bg-gray-300 text-xs">T.V.A.%</td>
-                <td className="border border-black py-1 px-2 text-right bg-white text-xs">{invoice.tva_rate}%</td>
+                <td colSpan={2} className="border border-black py-1.5 px-3 text-center bg-gray-300 text-xs font-bold">T.V.A.%</td>
+                <td className="border border-black py-1.5 px-3 text-right bg-white text-xs">{invoice.tva_rate}%</td>
               </tr>
               <tr>
-                <td colSpan={2} className="border border-black py-1 px-2 text-center bg-gray-300 text-xs">MONTANT T.V.A.</td>
-                <td className="border border-black py-1 px-2 text-right bg-white text-xs">{invoice.tva_amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
+                <td colSpan={2} className="border border-black py-1.5 px-3 text-center bg-gray-300 text-xs font-bold">MONTANT T.V.A.</td>
+                <td className="border border-black py-1.5 px-3 text-right bg-white text-xs">{invoice.tva_amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
               </tr>
               <tr>
-                <td colSpan={2} className="border border-black py-1 px-2 text-center font-bold bg-gray-300 text-xs">TOTAL TTC</td>
-                <td className="border border-black py-1 px-2 text-right font-bold bg-white text-xs">{invoice.total_ttc.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
+                <td colSpan={2} className="border border-black py-1.5 px-3 text-center font-bold bg-gray-300 text-xs">TOTAL TTC</td>
+                <td className="border border-black py-1.5 px-3 text-right font-bold bg-white text-xs">{invoice.total_ttc.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH</td>
               </tr>
             </tbody>
           </table>
 
           {/* Bottom Section (Signature) */}
-          <div className="flex justify-end mt-0">
+          <div className="flex justify-end">
             {invoice.type === 'facture' && (
-              <div className="mt-8 font-bold text-center w-64">DIRECTION GENERALE</div>
+              <div className="mt-4 font-bold text-center w-72 text-sm underline">DIRECTION GENERALE</div>
             )}
           </div>
 
+          {/* Spacer to push footer to bottom */}
+          <div className="flex-grow"></div>
+
           {/* Footer */}
-          <div className="mt-12 text-center text-xs">
-            <p>RC: 490607 - Patente: 34101837 - I.F.: 48559866 - CNSS: 2432068 - ICE: 002711861000009</p>
-            <p>26, AV MERS SULTAN, ETG 1, N°3, Casablanca</p>
+          <div className="mt-auto pt-12 text-center text-xs">
+            <p className="mb-2">RC: 490607 - Patente: 34101837 - I.F.: 48559866 - CNSS: 2432068 - ICE: 002711861000009</p>
+            <p className="mb-2">26, AV MERS SULTAN, ETG 1, N°3, Casablanca</p>
             <p>Tél.: 06 62 22 84 21 / 06 61 96 57 05/ - E-mail : contact.ecoair@gmail.com</p>
           </div>
         </div>
@@ -587,12 +588,15 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
         <button 
           onClick={downloadPDF}
           disabled={isGenerating}
-          className="flex items-center gap-2 px-6 py-2 rounded-full bg-[#009FE3] text-white hover:bg-[#0089C4] transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-6 py-2 rounded-full bg-[#009FE3] text-white hover:bg-[#0089C4] transition-colors shadow-lg shadow-[#009FE3]/20 disabled:opacity-50"
         >
           {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
           Télécharger PDF
         </button>
       </div>
+      <p className="mt-4 text-center text-xs text-gray-500 no-print">
+        Tip: Dans la fenêtre d'impression, assurez-vous que les "Graphiques d'arrière-plan" sont cochés et que les marges sont réglées sur "Aucune".
+      </p>
     </div>
   );
 };
