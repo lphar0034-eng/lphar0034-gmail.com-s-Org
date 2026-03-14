@@ -388,7 +388,32 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
               transform: none !important;
               scale: 1 !important;
               margin-bottom: 0 !important;
+              display: flex !important;
+              flex-direction: column !important;
+              background: white !important;
+              color: black !important;
             }
+            table {
+              border-collapse: collapse !important;
+              width: 100% !important;
+              border: 1px solid black !important;
+              table-layout: fixed !important;
+            }
+            th, td {
+              border: 1px solid black !important;
+              padding: 6px 4px !important;
+              word-wrap: break-word !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+            th:nth-child(1), td:nth-child(1) { width: 15mm !important; }
+            th:nth-child(2), td:nth-child(2) { width: auto !important; }
+            th:nth-child(3), td:nth-child(3) { width: 15mm !important; }
+            th:nth-child(4), td:nth-child(4) { width: 30mm !important; }
+            th:nth-child(5), td:nth-child(5) { width: 35mm !important; }
+            thead { display: table-header-group !important; }
+            tr { break-inside: avoid !important; }
           }
         `}
       </style>
@@ -506,7 +531,7 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
             <tbody>
                        {invoice.items.map((item, idx) => (
                 <tr key={idx} className="border-b border-black">
-                  <td className="border-x border-black p-2 align-top text-center"></td>
+                  <td className="border-x border-black p-2 align-top text-center">{idx + 1}</td>
                   <td className="border-x border-black p-2 align-top whitespace-pre-line">
                     {(() => {
                       const lines = item.description.split('\n');
@@ -527,11 +552,11 @@ const InvoicePreview: React.FC<{ invoice: Invoice; onBack: () => void }> = ({ in
               ))}
               {/* Totals Rows integrated into main table */}
               <tr>
-                <td colSpan={2} rowSpan={4} className="pt-4 px-4 align-top text-left">
+                <td colSpan={2} rowSpan={4} className="border-l border-b border-black pt-4 px-4 align-top text-left border-t-0 border-r-0">
                   {invoice.type === 'facture' ? (
                     <div className="text-sm">
                       <p className="mb-2 italic">Arrêtée la présente facture à la somme de :</p>
-                      <p className="font-bold uppercase text-xs leading-relaxed">{numberToFrenchWords(invoice.total_ttc)}</p>
+                      <p className="font-bold uppercase text-xs leading-relaxed break-words">{numberToFrenchWords(invoice.total_ttc)}</p>
                     </div>
                   ) : (
                     <div className="text-[10px] leading-tight text-gray-700">
